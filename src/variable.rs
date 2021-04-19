@@ -552,7 +552,7 @@ impl<'de> de::Deserialize<'de> for Variable {
             {
                 let mut values = vec![];
 
-                while let Some(elem) = try!(visitor.next_element()) {
+                while let Some(elem) = visitor.next_element()? {
                     values.push(elem);
                 }
 
@@ -565,7 +565,7 @@ impl<'de> de::Deserialize<'de> for Variable {
             {
                 let mut values = BTreeMap::new();
 
-                while let Some((key, value)) = try!(visitor.next_entry()) {
+                while let Some((key, value)) = visitor.next_entry()? {
                     values.insert(key, value);
                 }
 

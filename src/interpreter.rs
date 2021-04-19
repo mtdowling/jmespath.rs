@@ -15,7 +15,7 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
     match *node {
         Ast::Field { ref name, .. } => Ok(data.get_field(name)),
         Ast::Subexpr { ref lhs, ref rhs, .. } => {
-            let left_result = try!(interpret(data, lhs, ctx));
+            let left_result = interpret(data, lhs, ctx)?;
             interpret(&left_result, rhs, ctx)
         }
         Ast::Identity { .. } => Ok(data.clone()),
@@ -28,7 +28,7 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
             }
         }
         Ast::Or { ref lhs, ref rhs, .. } => {
-            let left = try!(interpret(data, lhs, ctx));
+            let left = interpret(data, lhs, ctx)?;
             if left.is_truthy() {
                 Ok(left)
             } else {
@@ -36,7 +36,7 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
             }
         }
         Ast::And { ref lhs, ref rhs, .. } => {
-            let left = try!(interpret(data, lhs, ctx));
+            let left = interpret(data, lhs, ctx)?;
             if !left.is_truthy() {
                 Ok(left)
             } else {
@@ -44,12 +44,12 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
             }
         }
         Ast::Not { ref node, .. } => {
-            let result = try!(interpret(data, node, ctx));
+            let result = interpret(data, node, ctx)?;
             Ok(Rcvar::new(Variable::Bool(!result.is_truthy())))
         }
         // Returns the resut of RHS if cond yields truthy value.
         Ast::Condition { ref predicate, ref then, .. } => {
-            let cond_result = try!(interpret(data, predicate, ctx));
+            let cond_result = interpret(data, predicate, ctx)?;
             if cond_result.is_truthy() {
                 interpret(data, then, ctx)
             } else {
@@ -57,15 +57,15 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
             }
         }
         Ast::Comparison { ref comparator, ref lhs, ref rhs, .. } => {
-            let left = try!(interpret(data, lhs, ctx));
-            let right = try!(interpret(data, rhs, ctx));
+            let left = interpret(data, lhs, ctx)?;
+            let right = interpret(data, rhs, ctx)?;
             Ok(left.compare(comparator, &*right)
                 .map_or(Rcvar::new(Variable::Null),
                         |result| Rcvar::new(Variable::Bool(result))))
         }
         // Converts an object into a JSON array of its values.
         Ast::ObjectValues { ref node, .. } => {
-            let subject = try!(interpret(data, node, ctx));
+            let subject = interpret(data, node, ctx)?;
             match *subject {
                 Variable::Object(ref v) => {
                     Ok(Rcvar::new(Variable::Array(v.values().cloned().collect::<Vec<Rcvar>>())))
@@ -76,12 +76,12 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
         // Passes the results of lhs into rhs if lhs yields an array and
         // each node of lhs that passes through rhs yields a non-null value.
         Ast::Projection { ref lhs, ref rhs, .. } => {
-            match try!(interpret(data, lhs, ctx)).as_array() {
+            match interpret(data, lhs, ctx)?.as_array() {
                 None => Ok(Rcvar::new(Variable::Null)),
                 Some(left) => {
                     let mut collected = vec![];
                     for element in left {
-                        let current = try!(interpret(element, rhs, ctx));
+                        let current = interpret(element, rhs, ctx)?;
                         if !current.is_null() {
                             collected.push(current);
                         }
@@ -91,7 +91,7 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
             }
         }
         Ast::Flatten { ref node, .. } => {
-            match try!(interpret(data, node, ctx)).as_array() {
+            match interpret(data, node, ctx)?.as_array() {
                 None => Ok(Rcvar::new(Variable::Null)),
                 Some(a) => {
                     let mut collected: Vec<Rcvar> = vec![];
@@ -111,7 +111,7 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
             } else {
                 let mut collected = vec![];
                 for node in elements {
-                    collected.push(try!(interpret(data, node, ctx)));
+                    collected.push(interpret(data, node, ctx)?);
                 }
                 Ok(Rcvar::new(Variable::Array(collected)))
             }
@@ -122,7 +122,7 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
             } else {
                 let mut collected = BTreeMap::new();
                 for kvp in elements {
-                    let value = try!(interpret(data, &kvp.value, ctx));
+                    let value = interpret(data, &kvp.value, ctx)?;
                     collected.insert(kvp.key.clone(), value);
                 }
                 Ok(Rcvar::new(Variable::Object(collected)))
@@ -131,7 +131,7 @@ pub fn interpret(data: &Rcvar, node: &Ast, ctx: &mut Context) -> SearchResult {
         Ast::Function { ref name, ref args, offset } => {
             let mut fn_args: Vec<Rcvar> = vec![];
             for arg in args {
-                fn_args.push(try!(interpret(data, arg, ctx)));
+                fn_args.push(interpret(data, arg, ctx)?);
             }
             // Reset the offset so that it points to the function being evaluated.
             ctx.offset = offset;
